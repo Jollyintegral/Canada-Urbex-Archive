@@ -1,6 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { normalizeRole, roleLabel } from './role-utils.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBqUaNlFlKcyl86kaDDN196eRTGOJtlxkY",
@@ -15,6 +14,17 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 let guestMode = sessionStorage.getItem('guestMode') === '1';
+
+function normalizeRole(role) {
+  const value = (role || '').toString().trim().toLowerCase();
+  if (value === 'owner' || value === 'admin' || value === 'editor' || value === 'member' || value === 'visitor') return value;
+  return 'visitor';
+}
+
+function roleLabel(role) {
+  const r = normalizeRole(role);
+  return r.charAt(0).toUpperCase() + r.slice(1);
+}
 
 function closeAccountDropdown() {
   const dropdown = document.getElementById('accountDropdown');
@@ -58,11 +68,7 @@ function wireHeaderActions() {
       menuBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
     };
   }
-  if (settingsBtn) settingsBtn.onclick = () => {
-    closeAccountDropdown();
-    if (window.UrbexLoader) window.UrbexLoader.start();
-    window.location.href = 'settings.html';
-  };
+  if (settingsBtn) settingsBtn.onclick = () => { closeAccountDropdown(); window.location.href = 'settings.html'; };
   if (signOutBtn) signOutBtn.onclick = async () => {
     closeAccountDropdown();
     guestMode = false;
@@ -115,28 +121,6 @@ function wireMobileMenu() {
 
 wireHeaderActions();
 wireMobileMenu();
-
-function wireResourceDropdownAnimations() {
-  const items = Array.from(document.querySelectorAll('details.resource-item'));
-  items.forEach((details) => {
-    details.addEventListener('toggle', () => {
-      details.classList.remove('is-opening', 'is-closing');
-      if (details.open) {
-        details.classList.add('is-opening');
-        window.setTimeout(() => {
-          details.classList.remove('is-opening');
-          details.classList.add('is-open');
-        }, 220);
-      } else {
-        details.classList.remove('is-open');
-        details.classList.add('is-closing');
-        window.setTimeout(() => details.classList.remove('is-closing'), 260);
-      }
-    });
-  });
-}
-
-wireResourceDropdownAnimations();
 
 onAuthStateChanged(auth, (user) => {
   if (!user) {

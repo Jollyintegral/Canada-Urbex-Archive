@@ -12,7 +12,6 @@ import {
   signOut,
   signInAnonymously
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { normalizeRole, roleLabel } from './role-utils.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBqUaNlFlKcyl86kaDDN196eRTGOJtlxkY",
@@ -40,6 +39,17 @@ let map; // Global map variable
 let spotClusterGroup;
 const spotSearchIndex = [];
 let activeLinkControlsCloser = null;
+
+function normalizeRole(role) {
+  const value = (role || '').toString().trim().toLowerCase();
+  if (value === 'owner' || value === 'admin' || value === 'editor' || value === 'member' || value === 'visitor') return value;
+  return 'visitor';
+}
+
+function roleLabel(role) {
+  const r = normalizeRole(role);
+  return r.charAt(0).toUpperCase() + r.slice(1);
+}
 
 function normalizeVisibilityRole(role) {
   const value = (role || '').toString().trim().toLowerCase();
@@ -139,7 +149,7 @@ function parseCoordinateInput(input) {
 }
 
 function addCoordinateSearchControl() {
-  const coordControl = L.control({ position: 'topright' });
+  const coordControl = L.control({ position: 'bottomright' });
 
   coordControl.onAdd = function () {
     const container = L.DomUtil.create('div', 'coord-search-control');
@@ -458,7 +468,6 @@ async function loadSpots() {
   const cached = getCachedSpots();
   if (cached) {
     cached.forEach((entry) => renderSpotData(entry.id, entry.data));
-    window.dispatchEvent(new CustomEvent('urbex:spots-loaded'));
     return;
   }
   try {
@@ -472,8 +481,6 @@ async function loadSpots() {
     cacheSpotsForSession(cacheRows);
   } catch (err) {
     console.warn('Could not load spots from Firestore:', err);
-  } finally {
-    window.dispatchEvent(new CustomEvent('urbex:spots-loaded'));
   }
 }
 
@@ -583,7 +590,6 @@ function wireAccountMenu() {
   if (menuBtn) menuBtn.onclick = (e) => { e.stopPropagation(); toggleAccountDropdown(); };
   if (settingsBtn) settingsBtn.onclick = () => {
     closeAccountDropdown();
-    if (window.UrbexLoader) window.UrbexLoader.start();
     window.location.href = 'settings.html';
   };
   if (signOutBtn) signOutBtn.onclick = async () => { closeAccountDropdown(); await signOut(auth); };
@@ -664,15 +670,8 @@ function initAuthGate() {
     updateAccountMenuUi(null, null);
     if (gateEl) gateEl.style.display = 'none';
     if (!map) runMapApp();
-  } else if (sessionStorage.getItem('authSignedIn') !== '1') {
-    // Default: allow browsing the map as visitor without a blocking gate.
-    guestMode = true;
-    userRole = 'visitor';
-    sessionStorage.setItem('guestMode', '1');
-    updateAccountMenuUi(null, null);
-    if (gateEl) gateEl.style.display = 'none';
-    if (!map) runMapApp();
-  } else if (gateEl) {
+  }
+  if (sessionStorage.getItem('authSignedIn') === '1' && gateEl) {
     gateEl.style.display = 'none';
   }
   onAuthStateChanged(auth, async (user) => {
@@ -686,7 +685,7 @@ function initAuthGate() {
       updateAccountMenuUi(null, null);
       if (signInBtn) signInBtn.style.display = 'inline-flex';
       if (signOutBtn) signOutBtn.style.display = 'none';
-      if (gateEl) gateEl.style.display = 'none';
+      if (gateEl) gateEl.style.display = guestMode ? 'none' : 'flex';
       if (guestMode && !map) runMapApp();
       return;
     }
@@ -831,160 +830,11 @@ function addLocationControl() {
   locationControl.addTo(map);
 }
 
-function addSettingsControl() {
-  const settingsModal = document.getElementById('settingsModal');
-  const privacyPolicyModal = document.getElementById('privacyPolicyModal');
-  const privacyPolicyLink = document.getElementById('privacyPolicyLink');
-  const clusteringToggle = document.getElementById('clusteringToggle');
-  const analyticsToggle = document.getElementById('analyticsToggle');
-
-  // Settings button in Leaflet control
-  const settingsControl = L.control({ position: 'bottomright' });
-
-  settingsControl.onAdd = function () {
-    const btn = L.DomUtil.create('button', 'settings-control-btn');
-    btn.innerHTML = '⚙️';
-    btn.type = 'button';
-    btn.title = 'Settings';
-    btn.setAttribute('aria-label', 'Open settings');
-    btn.innerHTML = `
-      <svg class="settings-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="3.25"></circle>
-        <path d="M19.4 15a7.8 7.8 0 0 0 .05-5.9l1.75-1.35-2-3.45-2.18.88a7.9 7.9 0 0 0-2.52-1.46L14.2 1.4h-4.4l-.3 2.32a7.9 7.9 0 0 0-2.52 1.46L4.8 4.3l-2 3.45L4.55 9.1a7.8 7.8 0 0 0 0 5.8L2.8 16.25l2 3.45 2.18-.88a7.9 7.9 0 0 0 2.52 1.46l.3 2.32h4.4l.3-2.32a7.9 7.9 0 0 0 2.52-1.46l2.18.88 2-3.45L19.4 15Z"></path>
-      </svg>
-    `;
-
-    L.DomEvent.disableClickPropagation(btn);
-    L.DomEvent.disableScrollPropagation(btn);
-
-    btn.addEventListener('click', () => {
-      settingsModal.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-    });
-
-    return btn;
-  };
-
-  settingsControl.addTo(map);
-
-  // Modal close handlers
-  const closeModal = () => {
-    // Add closing animation class
-    settingsModal.classList.add('is-closing');
-    // Wait for animation to complete before hiding
-    setTimeout(() => {
-      settingsModal.style.display = 'none';
-      settingsModal.classList.remove('is-closing');
-      document.body.style.overflow = '';
-    }, 250);
-  };
-
-  const closePrivacyPolicyModal = () => {
-    privacyPolicyModal.classList.add('is-closing');
-    setTimeout(() => {
-      privacyPolicyModal.style.display = 'none';
-      privacyPolicyModal.classList.remove('is-closing');
-      document.body.style.overflow = '';
-    }, 250);
-  };
-
-  const openPrivacyPolicyModal = (e) => {
-    e.preventDefault();
-    settingsModal.style.display = 'none';
-    settingsModal.classList.remove('is-closing');
-    privacyPolicyModal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  };
-
-  const backToSettingsModal = () => {
-    privacyPolicyModal.style.display = 'none';
-    privacyPolicyModal.classList.remove('is-closing');
-    settingsModal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  };
-
-  // Close on backdrop click
-  document.querySelector('.settings-modal-backdrop').addEventListener('click', closeModal);
-  document.querySelector('.settings-modal-close').addEventListener('click', closeModal);
-  privacyPolicyLink.addEventListener('click', openPrivacyPolicyModal);
-  document.querySelector('.privacy-policy-back').addEventListener('click', backToSettingsModal);
-  document.querySelector('.privacy-policy-backdrop').addEventListener('click', closePrivacyPolicyModal);
-  document.querySelector('.privacy-policy-close').addEventListener('click', closePrivacyPolicyModal);
-
-  // Close on Escape key
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && privacyPolicyModal.style.display === 'flex') {
-      closePrivacyPolicyModal();
-    } else if (e.key === 'Escape' && settingsModal.style.display === 'flex') {
-      closeModal();
-    }
-  });
-
-  // Clustering toggle handler
-  clusteringToggle.addEventListener('change', (e) => {
-    const enabled = e.target.checked;
-    localStorage.setItem('clusteringEnabled', enabled ? 'true' : 'false');
-
-    if (enabled) {
-      // Enable clustering - recreate the marker cluster group
-      if (!spotClusterGroup || !(spotClusterGroup instanceof L.MarkerClusterGroup)) {
-        // Clear existing layer
-        if (spotClusterGroup) map.removeLayer(spotClusterGroup);
-
-        // Create cluster group
-        spotClusterGroup = L.markerClusterGroup({
-          showCoverageOnHover: false,
-          spiderfyOnMaxZoom: true,
-          disableClusteringAtZoom: 15,
-          maxClusterRadius: 55
-        });
-
-        map.addLayer(spotClusterGroup);
-
-        // Re-add all markers
-        loadSpots();
-      }
-    } else {
-      // Disable clustering - switch to regular layer group
-      if (spotClusterGroup) {
-        const layerGroup = L.layerGroup();
-
-        // Transfer all markers
-        spotClusterGroup.eachLayer((marker) => {
-          layerGroup.addLayer(marker);
-        });
-
-        map.removeLayer(spotClusterGroup);
-        spotClusterGroup = layerGroup;
-        map.addLayer(spotClusterGroup);
-      }
-    }
-  });
-
-  // Analytics toggle handler
-  analyticsToggle.addEventListener('change', (e) => {
-    const enabled = e.target.checked;
-    localStorage.setItem('analyticsEnabled', enabled ? 'true' : 'false');
-    console.log('Analytics:', enabled ? 'enabled' : 'disabled');
-  });
-
-  // Load saved preferences
-  const clusteringSaved = localStorage.getItem('clusteringEnabled');
-  if (clusteringSaved !== null) {
-    clusteringToggle.checked = clusteringSaved === 'true';
-  }
-
-  const analyticsSaved = localStorage.getItem('analyticsEnabled');
-  if (analyticsSaved !== null) {
-    analyticsToggle.checked = analyticsSaved === 'true';
-  }
-}
-
 function runMapApp() {
   if (!window.L) throw new Error('Leaflet failed to load. Check internet or blocked unpkg.com');
 
   // Create the map
-  map = L.map('map', { zoomControl: false, attributionControl: false }).setView([53.5444, -113.4909], 12);
+  map = L.map('map', { zoomControl: false }).setView([53.5444, -113.4909], 12);
 
   // Street
   const street = L.tileLayer(
@@ -992,17 +842,19 @@ function runMapApp() {
     { attribution: 'Â© OpenStreetMap contributors' }
   );
 
-  // Satellite (MapTiler)
+  // Satellite
   const satellite = L.tileLayer(
-    'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=8KenpDlA9mUgjA1xAdxk',
-    { attribution: 'Â© MapTiler' }
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Tiles Â© Esri' }
   );
 
-  // Hybrid - MapTiler hybrid-v4 (satellite + roads combined)
-  const hybrid = L.tileLayer(
-    'https://api.maptiler.com/maps/hybrid-v4/{z}/{x}/{y}.png?key=8KenpDlA9mUgjA1xAdxk',
-    { attribution: 'Â© MapTiler' }
+  // Roads overlay
+  const roads = L.tileLayer(
+    'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Roads © Esri', opacity: 0.8 }
   );
+  // Hybrid = satellite + major roads (cleaner labels)
+  const hybrid = L.layerGroup([satellite, roads]);
 
   // Default view
   hybrid.addTo(map);
@@ -1031,7 +883,6 @@ function runMapApp() {
   }).addTo(map);
   addCoordinateSearchControl();
   addLocationControl();
-  addSettingsControl();
 
   // Add spot Leaflet control (editor+ only)
   if (canEditSpots()) {
@@ -1048,26 +899,24 @@ function runMapApp() {
     document.getElementById('addSpotBtn').style.display = 'none';
   }
 
-  // After all controls are added, move the main tools into one custom right-center panel
+  // After all controls are added, move them into one custom right-center panel
   // so they stack perfectly and don't fight Leaflet's corner containers.
-  // Settings stays in the bottom-right corner.
+  // Attribution stays in its own Leaflet container (bottom-left), untouched.
   setTimeout(() => {
     const mapEl = document.getElementById('map');
 
-    // Build the panel for non-search controls
+    // Build the panel
     const panel = document.createElement('div');
     panel.id = 'ctrl-panel';
 
-    // Grab each control element in desired order: layers toggle, locate, addspot
-    // Note: search bar stays at topright via Leaflet default positioning
+    // Grab each control element in desired order: search, layers toggle, locate, addspot
+    const searchEl   = document.querySelector('.coord-search-control');
     const layersEl   = document.querySelector('.leaflet-control-layers');
     const locateEl   = document.querySelector('.locate-btn');
     const addSpotEl  = document.getElementById('addSpotBtn');
 
-    if (layersEl && layersEl.parentNode) {
-      layersEl.parentNode.removeChild(layersEl);
-      panel.appendChild(layersEl);
-    }
+    if (searchEl)  panel.appendChild(searchEl);
+    if (layersEl)  panel.appendChild(layersEl);
     if (locateEl && locateEl.parentNode) {
       locateEl.parentNode.removeChild(locateEl);
       panel.appendChild(locateEl);
@@ -1100,9 +949,7 @@ function runMapApp() {
   }
 
   // Load spots
-  loadSpots().finally(() => {
-    window.dispatchEvent(new CustomEvent('urbex:map-ready'));
-  });
+  loadSpots();
 
   // Map click handler
   map.on("click", async function (e) {
