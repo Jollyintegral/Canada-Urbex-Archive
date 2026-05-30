@@ -4,21 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Canadian Urbex Archive</title>  
-  <link rel="icon" type="image/png" href="Logo.png">
+  <link rel="icon" type="image/png" href="CUA Logo.png">
   <link rel="stylesheet" href="style.css">
+  <script src="site-nav.js"></script>
 </head>
 <body class="settings-page">
   <header>
-    <div class="header-brand">
-      <img src="Logo.png" alt="Canadian Urbex Archive logo" class="header-logo-icon">
-      <span>Canadian Urbex Archive</span>
-    </div>
+    <a class="header-brand" href="index.html" aria-label="Canadian Urbex Archive home">
+      <img src="CUA Logo.png" alt="Canadian Urbex Archive logo" class="header-logo-icon">
+      <span class="header-brand-full">Canadian Urbex Archive</span>
+      <span class="header-brand-short">CUA</span>
+    </a>
     <div class="header-center">
       <div class="mobile-drawer-header">
-        <img src="Logo.png" alt="Canadian Urbex Archive logo" class="drawer-logo-icon">
+        <img src="CUA Logo.png" alt="Canadian Urbex Archive logo" class="drawer-logo-icon">
         <button class="drawer-close-button" type="button" aria-label="Close navigation menu">×</button>
       </div>
-      <a href="index.html" class="top-nav-link">Map</a>
+      <a href="index.html" class="top-nav-link">Home</a>
+      <a href="map.html" class="top-nav-link">Map</a>
       <a href="resources.html" class="top-nav-link">Resources</a>
     </div>
     <div class="header-right">
@@ -28,7 +31,7 @@
         <span id="settingsAccountName" class="account-menu-name">Account</span>
         <span id="settingsAccountAvatar" class="account-menu-avatar">U</span>
       </button>
-      <div id="settingsAccountDropdown" class="account-dropdown" style="display:none;">
+      <div id="settingsAccountDropdown" class="account-dropdown">
         <button id="settingsSignOutBtn" class="account-dropdown-item account-dropdown-item-danger" type="button">Sign Out</button>
       </div>
     </div>
@@ -46,16 +49,20 @@
       <button class="settings-nav-item is-active" type="button" data-tab="account">Account Settings</button>
       <button class="settings-nav-item" type="button" data-tab="profile">Profile</button>
       <button class="settings-nav-item" type="button" data-tab="privacy">Privacy</button>
-      <button class="settings-nav-item" type="button" data-tab="roles">Role Dashboard</button>
+      <button class="settings-nav-item" type="button" data-tab="roles" data-owner-only="true" style="display:none;">Role Dashboard</button>
     </aside>
     <section class="settings-panel-main">
+      <div class="settings-mobile-back">
+        <button id="settingsMobileBackBtn" type="button" class="settings-back-button">← Back</button>
+      </div>
+      <button id="settingsCloseBtn" type="button" class="settings-close-btn" aria-label="Close settings">×</button>
       <div class="settings-tab-panel is-active" data-panel="account">
         <div class="settings-panel-head">
           <h1>Account Settings</h1>
         </div>
         <div class="settings-form-grid">
           <label for="settingsDisplayNameInput">Display Name</label>
-          <input id="settingsDisplayNameInput" type="text" maxlength="60" placeholder="Your display name">
+          <input id="settingsDisplayNameInput" type="text" maxlength="30" placeholder="Your display name">
 
           <label for="settingsEmailInput">Account Email</label>
           <input id="settingsEmailInput" type="email" disabled>
@@ -79,12 +86,13 @@
           <input value="Private profile (coming soon)" disabled>
         </div>
       </div>
-      <div class="settings-tab-panel" data-panel="roles">
+      <div class="settings-tab-panel" data-panel="roles" data-owner-only="true" style="display:none;">
         <div class="settings-panel-head">
           <h1>Role Dashboard</h1>
         </div>
-        <p class="settings-role-note">Admin only. Change member roles and keep an audit trail.</p>
+        <p class="settings-role-note">Owner only. Change member roles and keep an audit trail.</p>
         <div id="roleDashboardBlock">
+          <div id="roleUsersCards" class="settings-role-cards" aria-label="User roles"></div>
           <div class="settings-role-table-wrap">
             <table class="settings-role-table">
               <thead>
@@ -99,8 +107,8 @@
       </div>
       <p id="settingsStatusText" class="account-settings-status"></p>
       <div class="settings-actions">
+        <button id="settingsBackBtn" type="button" class="settings-exit-btn" aria-label="Exit settings">←</button>
         <button id="settingsSaveBtn" type="button">Save Changes</button>
-        <button id="settingsBackBtn" type="button" class="account-settings-cancel">Back to Map</button>
       </div>
     </section>
   </main>

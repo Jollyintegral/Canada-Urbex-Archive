@@ -1,5 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import { normalizeRole, roleLabel } from './role-utils.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBqUaNlFlKcyl86kaDDN196eRTGOJtlxkY",
@@ -15,21 +16,10 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 let guestMode = sessionStorage.getItem('guestMode') === '1';
 
-function normalizeRole(role) {
-  const value = (role || '').toString().trim().toLowerCase();
-  if (value === 'owner' || value === 'admin' || value === 'editor' || value === 'member' || value === 'visitor') return value;
-  return 'visitor';
-}
-
-function roleLabel(role) {
-  const r = normalizeRole(role);
-  return r.charAt(0).toUpperCase() + r.slice(1);
-}
-
 function closeAccountDropdown() {
   const dropdown = document.getElementById('accountDropdown');
   const btn = document.getElementById('accountMenuBtn');
-  if (dropdown) dropdown.style.display = 'none';
+  if (dropdown) dropdown.classList.remove('is-visible');
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
@@ -63,13 +53,18 @@ function wireHeaderActions() {
   if (menuBtn && dropdown) {
     menuBtn.onclick = (e) => {
       e.stopPropagation();
-      const open = dropdown.style.display !== 'none';
-      dropdown.style.display = open ? 'none' : 'block';
+      const open = dropdown.classList.contains('is-visible');
+      dropdown.classList.toggle('is-visible');
       menuBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
     };
   }
-  if (settingsBtn) settingsBtn.onclick = () => { closeAccountDropdown(); window.location.href = 'settings.html'; };
+  if (settingsBtn) settingsBtn.onclick = () => {
+    closeAccountDropdown();
+    if (window.UrbexLoader) window.UrbexLoader.start();
+    window.location.href = 'settings.html';
+  };
   if (signOutBtn) signOutBtn.onclick = async () => {
+    if (window.UrbexLoader) window.UrbexLoader.start();
     closeAccountDropdown();
     guestMode = false;
     sessionStorage.removeItem('guestMode');
@@ -121,6 +116,34 @@ function wireMobileMenu() {
 
 wireHeaderActions();
 wireMobileMenu();
+
+function wireResourceDropdownAnimations() {
+  const items = Array.from(document.querySelectorAll('details.resource-item'));
+  items.forEach((details) => {
+    const summary = details.querySelector('summary');
+    if (!summary) return;
+    summary.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (details.open) {
+        details.classList.remove('is-open');
+        details.classList.add('is-closing');
+        window.setTimeout(() => {
+          details.removeAttribute('open');
+          details.classList.remove('is-closing');
+        }, 260);
+      } else {
+        details.setAttribute('open', '');
+        details.classList.add('is-opening');
+        window.setTimeout(() => {
+          details.classList.remove('is-opening');
+          details.classList.add('is-open');
+        }, 220);
+      }
+    });
+  });
+}
+
+wireResourceDropdownAnimations();
 
 onAuthStateChanged(auth, (user) => {
   if (!user) {
